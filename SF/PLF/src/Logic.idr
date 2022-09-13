@@ -325,5 +325,67 @@ double_of_half_F (S (S k)) prf = cong (\x => S (S x)) $ double_of_half_F k prf
 even_double_conv : (n : Nat) -> 
   (k : Nat ** n = if evenb n then double k else S (double k))
 
+double_halve_nat_id : (n : Nat)
+  -> n = if evenb n then double (halve_nat n) else S (double (halve_nat n))
+double_halve_nat_id n =
+  case decEq (evenb n) True of
+    (Yes prf) => rewrite prf in rewrite double_of_half_T n prf in Refl
+    (No contra) => rewrite evenb_false_neg n contra in
+      rewrite double_of_half_F n contra in Refl
+
+even_bool_type : (n : Nat) -> iff (evenb n = True) (even n)
+  -- (evenb n = True -> (n : Nat ** n = double n),
+  --  (n : Nat ** n = double n) -> evenb n = True)
+even_bool_type m = 
+  (\prf => (halve_nat m ** rewrite double_of_half_T m prf in Refl),
+   \(wtn ** prf) =>
+          rewrite prf in
+          rewrite even_double wtn in
+          Refl)
+
+eqb : (n1, n2 : Nat) -> Bool
+eqb 0 0 = True
+eqb 0 (S k) = False
+eqb (S k) 0 = False
+eqb (S k) (S j) = eqb k j
+
+-- exercise in other part
+eqb_true : (n1, n2 : Nat) -> (eqb n1 n2 = True) -> n1 = n2
+
+-- needless to define
+eqnatpred : {n1, n2 : Nat} -> S n1 = S n2 -> n1 = n2
+eqnatpred Refl = Refl
+
+-- exercise in other part
+eq_true : (n1, n2 : Nat) -> n1 = n2 -> (eqb n1 n2 = True)
+
+eqb_eq : (n1, n2 : Nat) -> iff (eqb n1 n2 = True) (n1 = n2)
+  -- (eqb n1 n2 = True -> n1 = n2, n1 = n2 -> eqb n1 n2 = True)
+eqb_eq n1 n2 =
+  (\eqbprf => rewrite eqb_true n1 n2 eqbprf in Refl,
+   \eqprf => rewrite eq_true n1 n2 eqprf in Refl)
+
+
+even_1000 : even 1000
+even_1000 = (500 ** Refl)
+
+even_1000' : evenb 1000 = True
+even_1000' = Refl
+
+even_1000'' : even 1000
+even_1000'' = let (f, _) = even_bool_type 1000 in f Refl
+
+not_even_1001 : evenb 1001 = False
+not_even_1001 = Refl
+
+not_even_1001' : Not (even 1001)
+not_even_1001' dp = let (_, f) = even_bool_type 1001 in absurd (f dp)
+
+plus_eqb_example : (n, m, p : Nat) ->
+                   eqb n m = True -> eqb (n + p) (m + p) = True
+plus_eqb_example n m p prf =
+  let (f, _) = eqb_eq n m in
+  rewrite f prf in
+  let (_, f') = eqb_eq (m + p) (m + p) in f' Refl
 
 -- Classical vs. Constructive Logic ----------------------
