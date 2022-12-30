@@ -64,25 +64,27 @@ snocListHelp' {input = (p :: ps)} snoc (q :: qs) =
 snocList : (xs : List a) -> SnocList xs
 snocList xs = snocListHelp Empty xs -- the 1st argument is the accumulator
 
-myReverseHelper : (input : List a) -> SnocList input -> List a
-myReverseHelper [] Empty = []
-myReverseHelper (xs ++ [x]) (Snoc rec) = x :: myReverseHelper xs rec
 
--- You can also write myReverseHelper as follows:
-myReverseHelper' : (input : List a) -> SnocList input -> List a
-myReverseHelper' _ Empty = []
-myReverseHelper' _ (Snoc {x} rec {xs}) = x :: myReverseHelper' xs rec
-
+-- definition of myReverse by using snocList
 myReverse : List a -> List a
 myReverse xs = myReverseHelper xs (snocList xs)
+  where
+    myReverseHelper : (input : List a) -> SnocList input -> List a
+    myReverseHelper [] Empty = []
+    myReverseHelper (xs ++ [x]) (Snoc rec) = x :: myReverseHelper xs rec
+  {- You can also write myReverseHelper as follows:
+    myReverseHelper' : (input : List a) -> SnocList input -> List a
+    myReverseHelper' _ Empty = []
+    myReverseHelper' _ (Snoc {x} rec {xs}) = x :: myReverseHelper' xs rec
+  -}
 
 -- definition of myReverse by using *with* construct
 myReverse' : List a -> List a
 myReverse' xs with (snocList xs)
   myReverse' [] | Empty = []
   myReverse' (xs ++ [x]) | (Snoc rec) = 
---    x :: myReverse' xs -- writing this way does not guarantee the totality
     x :: myReverse' xs | rec -- writing this way makes this function total
+--    x :: myReverse' xs -- writing this way does not guarantee the totality
 
 -- another version
 myReverse'' : List a -> List a
@@ -97,3 +99,30 @@ myReverse3 xs with (snocList xs)
   myReverse3 [] | _ = []
   myReverse3 _ | (Snoc {x} rec {xs}) = 
     x :: myReverse3 xs | rec
+
+-- for comparison:
+{-
+  Simple implementation of myReverse, which is slow.
+  * total: covers and terminates
+  * slow: requires O(n^2) steps 
+  * vague specification: the type says almost nothing
+-}
+myReverseSlow : List a -> List a
+myReverseSlow [] = []
+myReverseSlow (x :: xs) = myReverseSlow xs ++ [x]
+
+{-
+  Simple but efficient implementation of myReverse.
+  * total: covers and terminates
+  * fast: requires only O(n) steps
+  * vague specification: the type says almost nothing
+-}
+myReverseFast : List a -> List a
+myReverseFast [] = []
+myReverseFast (x :: xs) = myReverseFastHelper [x] xs
+  where
+    myReverseFastHelper : List a -> List a -> List a
+    myReverseFastHelper ws [] = ws
+    myReverseFastHelper [] (x :: xs) = myReverseFastHelper [x] xs
+    myReverseFastHelper ws (x :: xs) = myReverseFastHelper (x::ws) xs
+
