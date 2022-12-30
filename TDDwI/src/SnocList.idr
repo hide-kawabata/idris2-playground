@@ -83,3 +83,17 @@ myReverse' xs with (snocList xs)
   myReverse' (xs ++ [x]) | (Snoc rec) = 
 --    x :: myReverse' xs -- writing this way does not guarantee the totality
     x :: myReverse' xs | rec -- writing this way makes this function total
+
+-- another version
+myReverse'' : List a -> List a
+myReverse'' xs with (snocList xs)
+  myReverse'' _ | Empty = []
+  myReverse'' _ | (Snoc rec {x} {xs}) = 
+    x :: myReverse'' xs | rec
+
+-- another version
+myReverse3 : List a -> List a
+myReverse3 xs with (snocList xs)
+  myReverse3 [] | _ = []
+  myReverse3 _ | (Snoc {x} rec {xs}) = 
+    x :: myReverse3 xs | rec
