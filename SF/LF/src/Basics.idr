@@ -102,15 +102,15 @@ isRed (Primary Red) = MyTrue
 isRed (Primary _) = MyFalse
 
 data Bit : Type where
-  B1 : Bit
-  B0 : Bit
+  BB1 : Bit
+  BB0 : Bit
 
 data Nybble : Type where
   Bits : Bit -> Bit -> Bit -> Bit -> Nybble
 
 total
 all_zero : (nb : Nybble) -> MyBool
-all_zero (Bits B0 B0 B0 B0) = MyTrue
+all_zero (Bits BB0 BB0 BB0 BB0) = MyTrue
 all_zero (Bits _ _ _ _) = MyFalse
 
 data MyNat : Type where
@@ -295,3 +295,33 @@ andb_eq_orb MyFalse c prf = rewrite prf in Refl
 -- Course Late Policies, Formalized
 
 -- Binary Numerals
+
+data Bin : Type where
+  Z : Bin
+  B0 : (n : Bin) -> Bin
+  B1 : (n : Bin) -> Bin
+
+total
+incr : (m : Bin) -> Bin
+incr Z = B1 Z
+incr (B0 m') = B1 m'
+incr (B1 m') = B0 (incr m')
+
+total
+bin_to_nat : (m : Bin) -> Nat
+bin_to_nat Z = 0
+bin_to_nat (B0 n) = let n' = bin_to_nat n in n' * 2
+bin_to_nat (B1 n) = let n' = bin_to_nat n in n' * 2 + 1
+
+test_bin_incr1 : (incr (B1 Z)) = B0 (B1 Z)
+test_bin_incr1 = Refl
+test_bin_incr2 : (incr (B0 (B1 Z))) = B1 (B1 Z)
+test_bin_incr2 = Refl
+test_bin_incr3 : (incr (B1 (B1 Z))) = B0 (B0 (B1 Z))
+test_bin_incr3 = Refl
+test_bin_incr4 : bin_to_nat (B0 (B1 Z)) = 2
+test_bin_incr4 = Refl
+test_bin_incr5 : bin_to_nat (incr (B1 Z)) = 1 + bin_to_nat (B1 Z)
+test_bin_incr5 = Refl
+test_bin_incr6 : bin_to_nat (incr (incr (B1 Z))) = 2 + bin_to_nat (B1 Z)
+test_bin_incr6 = Refl
