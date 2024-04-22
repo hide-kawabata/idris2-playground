@@ -257,7 +257,7 @@ andb_commutatie MyFalse MyFalse = Refl
 andb_true_elim2 : (b : MyBool) -> (c : MyBool) -> 
   andb b c = MyTrue -> c = MyTrue
 andb_true_elim2 MyTrue c prf = rewrite prf in Refl
-andb_true_elim2 MyFalse _ Refl impossible
+andb_true_elim2 MyFalse _ Refl impossible -- you do not have to put this line
 
 -- Exercise 1
 
