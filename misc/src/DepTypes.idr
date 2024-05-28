@@ -26,6 +26,10 @@ x1 = VCons 300 VNil
 x : Vec 3 Nat
 x = VCons 100 (VCons 200 (VCons 300 VNil))
 
+appendVec : {p, q : Nat} -> Vec p a -> Vec q a -> Vec (p+q) a
+appendVec VNil y = y
+appendVec (VCons e l) y = VCons e (appendVec l y)
+
 l0, l1, l2 : List Nat
 l0 = [] {a=Nat}
 l1 = [1, 3, 4, 5]
