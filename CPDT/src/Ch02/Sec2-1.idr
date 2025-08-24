@@ -63,19 +63,15 @@ t03 = Refl
 
 -- 2.1.4 Translation Correctness
 
-compileCorrect : (e : Exp) -> progDenote (compile e) [] = Just (expDenote e :: [])
-compileCorrect (Const n) = Refl
-compileCorrect (Binop b e1 e2) = ?compileCorrect_rhs_1
-
-lnm : {0 a : Type} -> (l1, l2, l3 : List a) ->
+appAssoc : {0 a : Type} -> (l1, l2, l3 : List a) ->
     l1 ++ (l2 ++ l3) = (l1 ++ l2) ++ l3
-lnm [] l2 l3 = Refl
-lnm (x :: xs) l2 l3 = cong (x::) (lnm xs l2 l3)
+appAssoc [] l2 l3 = Refl
+appAssoc (x :: xs) l2 l3 = cong (x::) (appAssoc xs l2 l3)
 {-
-lnm : {0 a : Type} -> {l1, l2, l3 : List a} ->
+appAssoc : {0 a : Type} -> {l1, l2, l3 : List a} ->
     l1 ++ (l2 ++ l3) = (l1 ++ l2) ++ l3
-lnm {l1 = []} {l2} {l3} = Refl
-lnm {l1 = (x :: xs)} {l2} {l3} = cong (x ::) lnm
+appAssoc {l1 = []} {l2} {l3} = Refl
+appAssoc {l1 = (x :: xs)} {l2} {l3} = cong (x ::) appAssoc
  -}
 
 compileCorrect' : (e : Exp) -> (p : Prog) -> (s : Stack) ->
@@ -86,12 +82,20 @@ compileCorrect' (Binop b e1 e2) p s =
 --        progDenote p (binopDenote b (expDenote e1) (expDenote e2) :: s)
     let ih1 = compileCorrect' e1 in
     let ih2 = compileCorrect' e2 in
-    -- let r = lnm {l1=(compile e2)} {l2=(compile e1 ++ [IBinop b])} {l3=p} in
-    let r = lnm (compile e2) (compile e1 ++ [IBinop b]) p in
-    rewrite sym r in
+    -- rewrite sym $ appAssoc {l1=(compile e2)} {l2=(compile e1 ++ [IBinop b])} {l3=p} in
+    rewrite sym $ appAssoc (compile e2) (compile e1 ++ [IBinop b]) p in
     rewrite ih2 ((compile e1 ++ [IBinop b]) ++ p) s in
-    -- let r' = lnm {l1=compile e1} {l2=[IBinop b]} {l3=p} in
-    let r' = lnm (compile e1) [IBinop b] p in
-    rewrite sym r' in
+    -- rewrite sym $ appAssoc {l1=compile e1} {l2=[IBinop b]} {l3=p} in
+    rewrite sym $ appAssoc (compile e1) [IBinop b] p in
     rewrite ih1 (IBinop b :: p) (expDenote e2 :: s) in
     Refl
+
+appNilEnd : {a : Type} -> (l : List a) -> l = l ++ []
+appNilEnd [] = Refl
+appNilEnd (x :: xs) = cong (x::) (appNilEnd xs)
+
+compileCorrect : (e : Exp) -> progDenote (compile e) [] = Just (expDenote e :: [])
+compileCorrect e =
+    rewrite appNilEnd (compile e) in
+    compileCorrect' e [] []
+
