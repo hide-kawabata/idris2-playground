@@ -98,3 +98,10 @@ removeElem_noauto value (value :: xs) {prf = Here} = xs
 removeElem_noauto value (y :: xs) {prf = (There later)} {n = (S k)}
     = y :: removeElem_noauto value xs {prf = later} -- {prf = later} is required
 
+-- auto is useful for making arguments elidable
+total
+removeElem_auto' : {n : _} -> (value : a) ->
+             (xs : Vect (S n) a) ->
+             {auto prf : Elem value xs} -> -- changing the argument to be auto-implicit
+             Vect n a
+removeElem_auto' value xs {prf} = removeElem' value xs prf
