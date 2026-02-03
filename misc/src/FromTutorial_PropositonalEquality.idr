@@ -47,3 +47,9 @@ notSameLength f prf = f (cong length prf)
 -- contraposition of cong
 contraCong : {0 f : _} -> Not (f a = f b) -> Not (a = b)
 contraCong fun x = fun $ cong f x
+
+-- rewrite rules
+addZeroRight : (n : Nat) -> n + 0 = n
+addZeroRight 0     = Refl
+addZeroRight (S k) = cong S $ addZeroRight k
+

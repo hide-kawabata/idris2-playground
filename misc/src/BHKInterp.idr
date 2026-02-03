@@ -1,3 +1,5 @@
+import Data.Nat -- for using Uninhabited (0 = S 0), etc.
+
 -- BHK interpretation
 
 -- conjunction
@@ -28,11 +30,17 @@ v x = absurd x
 t : 4 = 5 -> a
 t Refl impossible
 
+tt : the Nat 49 = 50 -> a
+tt prf = absurd prf -- this is possible with the definition in Data.Nat
+
 t' : True = False -> a
 t' prf = absurd prf
 
 t'' : True = False -> a
 t'' Refl impossible
+
+t3 : True = False -> Void
+t3 Refl impossible
 
 prf : {p, q, r : Type} -> (p, Either q r) -> Either (p, q) (p, r)
 prf (x, (Left y)) = Left (x, y)
