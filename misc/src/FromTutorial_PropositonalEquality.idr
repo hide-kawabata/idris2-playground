@@ -1,4 +1,4 @@
-
+import Data.Vect
 
 mapListLength : (f : a -> b) -> (as : List a) -> length as = length (map f as)
 mapListLength f [] = Refl
@@ -48,8 +48,56 @@ notSameLength f prf = f (cong length prf)
 contraCong : {0 f : _} -> Not (f a = f b) -> Not (a = b)
 contraCong fun x = fun $ cong f x
 
--- rewrite rules
+-- rewriting types ---------------------------------------------------------
 addZeroRight : (n : Nat) -> n + 0 = n
-addZeroRight 0     = Refl
+addZeroRight 0     = Refl {x = 0} -- x is a term
 addZeroRight (S k) = cong S $ addZeroRight k
+
+-- replace for substituting one variable in a term by another, based on a proof of equality
+-- note: this function `converts` the type of the argument
+replaceVect : Vect (n + 0) a -> Vect n a
+replaceVect as = replace {p = \k => Vect k a} (addZeroRight n) as
+
+replaceVect' : {n : _} -> Vect (n + 0) a -> Vect n a
+replaceVect' as = let prf = addZeroRight n in                  
+                  let rewritten = replace {p = \k => Vect k a} prf as in rewritten
+                    -- type of an argument is rewritten
+
+rewriteVect : Vect (n + 0) a -> Vect n a
+rewriteVect as = rewrite sym (addZeroRight n) in as -- the goal is rewritten
+
+rewriteVect' : Vect (n + 0) a -> Vect n a
+rewriteVect' as = let rw = sym (addZeroRight n) in
+                  rewrite rw in as  -- the goal is rewritten
+
+-- note: this function produces a value from arguments
+revOnto : {m, n : _} -> Vect m a -> Vect n a -> Vect (m + n) a
+revOnto xs [] = rewrite addZeroRight m in xs
+revOnto {n = S len} xs (y :: ys) = 
+    let prf = plusSuccRightSucc m len in
+    rewrite sym prf in 
+    revOnto (y :: xs) ys
+
+-- separating proofs from the core computation
+prf_base : {m : _} -> Vect m a -> Vect (plus m 0) a
+prf_base xs = rewrite plusZeroRightNeutral m in xs
+prf_ind : {m : _} -> Vect (S (m + len)) a -> Vect (m + S len) a
+prf_ind xs = rewrite sym $ plusSuccRightSucc m len in xs
+
+revOnto' : {m, n : _} -> Vect m a -> Vect n a -> Vect (m + n) a
+revOnto' xs [] = prf_base xs
+revOnto' {n = S len} xs (y :: ys) = prf_ind $ revOnto' (y :: xs) ys
+
+-- proving equality of types
+propVect : {n : _} -> Vect (n + 0) a = Vect n a -- equality of types
+propVect = let prf = addZeroRight n in
+           rewrite prf in Refl {x = Vect n a} -- x is a type
+
+propVect' : {n : _} -> Vect (n + 0) a = Vect n a
+propVect' = let prf = addZeroRight n in
+            let rewritten = replace {p = \k => Vect k a} prf ?lhsval in ?hole00
+                -- no values corresponding to the lhs and rhs of the goal
+
+propEquiv : (a -> b) -> (b -> c) -> a -> c
+propEquiv f g = \v => g (f v)
 
