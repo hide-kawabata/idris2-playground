@@ -79,14 +79,16 @@ revOnto {n = S len} xs (y :: ys) =
     revOnto (y :: xs) ys
 
 -- separating proofs from the core computation
-prf_base : {m : _} -> Vect m a -> Vect (plus m 0) a
-prf_base xs = rewrite plusZeroRightNeutral m in xs
-prf_ind : {m : _} -> Vect (S (m + len)) a -> Vect (m + S len) a
-prf_ind xs = rewrite sym $ plusSuccRightSucc m len in xs
-
 revOnto' : {m, n : _} -> Vect m a -> Vect n a -> Vect (m + n) a
-revOnto' xs [] = prf_base xs
+revOnto' xs [] = prf_base $ xs -- returned value is xs
+  where
+    prf_base : {0 m : _} -> Vect m a -> Vect (plus m 0) a
+    prf_base {m} xs = rewrite plusZeroRightNeutral m in xs
 revOnto' {n = S len} xs (y :: ys) = prf_ind $ revOnto' (y :: xs) ys
+  where
+    prf_ind : {0 len : _} -> {0 m : _} -> Vect (S (m + len)) a -> Vect (m + S len) a
+    prf_ind {len} {m} xs = rewrite sym $ plusSuccRightSucc m len in xs -- {len} {m} needed
+    -- prf_ind {len} {m} xs = replace {p = \k => Vect k a} (plusSuccRightSucc m len) xs -- OK
 
 -- proving equality of types
 propVect : {n : _} -> Vect (n + 0) a = Vect n a -- equality of types
