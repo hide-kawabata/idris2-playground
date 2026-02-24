@@ -14,7 +14,7 @@ max' 0 (S k) = S k
 max' (S k) 0 = S k
 max' (S k) (S j) = let kj = max' k j in S kj
 
-spec_max' : {m : _} -> (a, b : Nat) -> max' a b = m -> 
+spec_max' : {0 m : _} -> (a, b : Nat) -> max' a b = m -> 
     (Either (a = m) (b = m), LTE a m, LTE b m)
 spec_max' 0 0 Refl = (Right Refl, LTEZero, LTEZero)
 spec_max' 0 (S b) Refl = -- (Either (0 = S b) (S b = S b), (LTE 0 (S b), LTE (S b) (S b)))
@@ -85,28 +85,32 @@ fact 0 = 1
 fact (S k) = (S k) * fact k
 
 -- giving precondition makes this function covering (ant thus total)
-subX : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> Nat -- imposing precondition
+-- "subX returns a Nat" <=== this is not saying what subX is
+subX : (a, b : Nat) -> {auto 0 p : GTE a b} -> Nat
 subX a 0 {p = LTEZero} = a
-subX (S right) (S left) {p = (LTESucc x)} = subX right left {p = x}
+subX (S a') (S b') {p = (LTESucc x)} = subX a' b'
 
--- precondition and postcondition
--- depending on subX
-subP0 : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> (r ** r = subX a b)
-subP0 a 0 {p = LTEZero} = (a ** Refl)
-subP0 (S right) (S k) {p = (LTESucc x)} = subP0 right k
--- subP0 (S right) (S k) {p = (LTESucc x)} = (subX right k ** Refl)
-
--- precondition and postcondition
--- standalone
--- subP : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> DPair Nat (\r => a = b `plus` r)
-subP : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> (r ** a = b `plus` r)
-subP a 0 {p = LTEZero} = (a ** Refl)
-subP (S right) (S k) {p = (LTESucc x)} = let (w ** prf) = subP right k in (w ** cong S prf)
-
--- extrinsing proof
-spec_subX : (a, b : Nat) -> {auto 0 p : GTE a b} -> a = b `plus` (subX a b)
+-- "for all a and b, a = b + (subX a b) holds"
+-- "You can obtain a Nat r such that a = b + r by using the function subX."
+spec_subX : (a, b : Nat) -> {auto 0 p : GTE a b} -> a = b `plus` (a `subX` b)
 spec_subX a 0 {p = LTEZero} = Refl
 spec_subX (S a') (S b') {p = (LTESucc x)} = let ih = spec_subX a' b' in cong S ih
+
+-- "subP returns r of Nat such that a = b + r"
+-- "You can obtain a Nat r such that a = b + r by using this function, subP."
+subP : (a, b : Nat) -> {auto 0 p : GTE a b} -> (r ** a = b `plus` r)
+subP a 0 {p = LTEZero} = (a ** Refl)
+subP (S a') (S b') {p = (LTESucc x)} = let (w ** prf) = subP a' b' in (w ** cong S prf)
+
+-- "subP0 performs just like subX" <=== this is not saying what subX is
+subP0 : (a, b : Nat) -> {auto 0 p : GTE a b} -> (r ** r = a `subX` b)
+subP0 a 0 {p = LTEZero} = (a ** Refl)
+subP0 (S a') (S b') {p = (LTESucc x)} = subP0 a' b'
+
+-- "subP0' performs just like subX" <=== this is not saying what subX is
+subP0' : (a, b : Nat) -> {auto 0 p : GTE a b} -> (r ** r = a `subX` b)
+subP0' a b = (subX a b ** Refl) -- subP0' is just a copy of subX
+
 
 -- n >= d ==> n <= d (bool -> prop)
 prop_gte : (n, d : Nat) -> n >= d = True -> GTE n d
@@ -193,6 +197,11 @@ prop_subX_lemma2 (S j) (S k) (LTESucc x) =
     \arg => let tmp = prop_lte (S k) (subX (S k) (S j)) arg in
     let pp = ih tmp in absurd pp
 
+prop_subX_lemma3 : (r0, d0 : Nat) -> {auto pd : GTE d0 1} -> {auto ps : GTE r0 d0} -> Not (LTE (S r0) (subX r0 d0))
+prop_subX_lemma3 _ Z _ impossible
+prop_subX_lemma3 Z (S _) _ impossible
+prop_subX_lemma3 (S r') (S d') {pd = (LTESucc y)} {ps = (LTESucc z)} x = ?prop_subX_lemma3_rhs_5
+
 -- d >= 1 && n >= d ==> -d <= -1 ==> n-d <= n-1 < n  ==> n-d < n
 prop_subX : (n, d : Nat) -> {auto pd : GTE d 1} -> {auto ps : GTE n d} -> Not (GTE (subX n d) n)
 prop_subX Z Z _ impossible
@@ -216,6 +225,17 @@ prop_subX (S k) (S j) {pd} {ps} pg =
             let pg' = prop_subX_lemma2 j k ps pg in
             absurd pg'
 
+prop_lt : (r, d : Nat) -> not (compareNat r d == LT) = True -> GTE r d
+prop_lt 0 0 Refl = LTEZero
+prop_lt Z (S _) Refl impossible
+prop_lt (S k) 0 Refl = LTEZero
+prop_lt (S k) (S j) prf = let ih = prop_lt k j prf in LTESucc ih
+
+prop_subX2 : (n, d : Nat) -> {auto 0 p : LTE d n} -> n > (subX n d) = True -> Not (LTE n (subX n d))
+prop_subX2 0 0 {p = LTEZero} prf x = absurd prf
+prop_subX2 (S n') 0 {p = LTEZero} prf (LTESucc x) = ?prop_subX2_rhs_5
+prop_subX2 (S n') (S d') {p = (LTESucc y)} prf x = let ih = prop_subX2 n' d' {p=y} in ?prop_subX2_rhs_4
+
 -- giving precondition makes this function covering
 divX : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> (Nat, Nat)
 divX n d {d_1} = case decEq (n >= d) True of
@@ -224,15 +244,26 @@ divX n d {d_1} = case decEq (n >= d) True of
         (S q, r)
     (No contra) => (Z, n)
 
+divX' : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> (Nat, Nat)
+divX' n d {d_1} = case decEq (n >= d) True of
+    (Yes prf) =>
+        -- let (q, r) = divX' (assert_smaller n (subX n d {p=prop_gte n d prf})) d in -- prop_subX guarantees n < n-d
+        -- (S q, r)
+        case decEq (n > subX n d {p=prop_gte n d prf}) True of
+            (Yes x) =>
+                -- prf : not (compareNat n d == LT) = True
+                -- x : compareNat n (subX n d) == GT = True
+                let prf' = prop_lt n d prf in
+                ?hohoholle_0
+            (No contra) =>
+                -- prf : not (compareNat n d == LT) = True
+                -- contra : compareNat n (subX n d) == GT = True -> Void
+                ?hohoholle_1
+    (No contra) => (Z, n)
+
 -- n = plus (mult q d) r =======> How can I obtain pre' : n = plus (mult (S q) d) r' ?
 eq_calc1 : (n, d, q, r : Nat) -> {r' : Nat} -> {auto pre : n = plus (mult q d) r} -> {auto prf : GTE r d} -> r' = subX r d {p = prf} -> n = plus (mult (S q) d) r'
 eq_calc1 n d q r {r'} {pre} {prf} eqprf = ?hole
-
-prop_lt : (r, d : Nat) -> not (compareNat r d == LT) = True -> GTE r d
-prop_lt 0 0 Refl = LTEZero
-prop_lt Z (S _) Refl impossible
-prop_lt (S k) 0 Refl = LTEZero
-prop_lt (S k) (S j) prf = let ih = prop_lt k j prf in LTESucc ih
 
 -- initialize (precondition): n, d, q<-0, r<-n
 -- precondition: d > 0
@@ -260,6 +291,28 @@ divPstep n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
      -- goal : r0 = plus d0 (subX r0 d0))
      rewrite sym $ prop_plus_subX r0 d0 in
      Refl)
+
+divPstep' : (n, d, q, r : Nat) ->
+        {auto 0 d_1 : GTE d 1} -> -- d >= 1
+        {auto 0 yet : GTE r d} -> -- r >= d
+        {auto 0 inv : n = (q `mult` d) `plus` r} -> -- n = q*d+r  (n = (q'+1)*d+(r'-d))
+        DPair (Nat, Nat) (\(q', r') => (n = (q' `mult` d) `plus` r', LTE r r' -> Void)) -- n = q'*d+r' /\ r > r'
+        -- (q' ** (r' ** n = (q' `mult` d) `plus` r')) -- n = q'*d+r'
+divPstep' n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
+    -- goal : plus (mult q (S d0)) (S r0) = S (plus (plus d0 (mult q (S d0))) (subX r0 d0))
+    ((S q, subX r0 d0) **
+     rewrite inv in
+     rewrite plusCommutative d0 (mult q (S d0)) in
+     rewrite plusSuccRightSucc (plus (mult q (S d0)) d0) (subX r0 d0) in
+     -- goal : plus (mult q (S d0)) (S r0) = plus (plus (mult q (S d0)) d0) (S (subX r0 d0))
+     rewrite sym $ plusAssociative (mult q (S d0)) d0 (S (subX r0 d0)) in
+     -- goal : (S r0) = (plus d0 (S (subX r0 d0)))
+     rewrite sym $ plusSuccRightSucc d0 (subX r0 d0) in
+     -- goal : r0 = plus d0 (subX r0 d0))
+     rewrite sym $ prop_plus_subX r0 d0 in
+     -- LTE (S r0) (subX r0 d0) -> Void
+     (Refl, ?hohooo))
+
 
 -- initialize (precondition): n, d, q<-0, r<-n
 -- precondition: d > 0
