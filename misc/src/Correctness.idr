@@ -90,16 +90,23 @@ subX a 0 {p = LTEZero} = a
 subX (S right) (S left) {p = (LTESucc x)} = subX right left {p = x}
 
 -- precondition and postcondition
--- subP0 : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> DPair Nat (\r => r = subX a b)
+-- depending on subX
 subP0 : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> (r ** r = subX a b)
 subP0 a 0 {p = LTEZero} = (a ** Refl)
 subP0 (S right) (S k) {p = (LTESucc x)} = subP0 right k
 -- subP0 (S right) (S k) {p = (LTESucc x)} = (subX right k ** Refl)
 
+-- precondition and postcondition
+-- standalone
+-- subP : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> DPair Nat (\r => a = b `plus` r)
 subP : (a : Nat) -> (b : Nat) -> {auto 0 p : GTE a b} -> (r ** a = b `plus` r)
 subP a 0 {p = LTEZero} = (a ** Refl)
 subP (S right) (S k) {p = (LTESucc x)} = let (w ** prf) = subP right k in (w ** cong S prf)
 
+-- extrinsing proof
+spec_subX : (a, b : Nat) -> {auto 0 p : GTE a b} -> a = b `plus` (subX a b)
+spec_subX a 0 {p = LTEZero} = Refl
+spec_subX (S a') (S b') {p = (LTESucc x)} = let ih = spec_subX a' b' in cong S ih
 
 -- n >= d ==> n <= d (bool -> prop)
 prop_gte : (n, d : Nat) -> n >= d = True -> GTE n d
@@ -221,29 +228,27 @@ divX n d {d_1} = case decEq (n >= d) True of
 eq_calc1 : (n, d, q, r : Nat) -> {r' : Nat} -> {auto pre : n = plus (mult q d) r} -> {auto prf : GTE r d} -> r' = subX r d {p = prf} -> n = plus (mult (S q) d) r'
 eq_calc1 n d q r {r'} {pre} {prf} eqprf = ?hole
 
+prop_lt : (r, d : Nat) -> not (compareNat r d == LT) = True -> GTE r d
+prop_lt 0 0 Refl = LTEZero
+prop_lt Z (S _) Refl impossible
+prop_lt (S k) 0 Refl = LTEZero
+prop_lt (S k) (S j) prf = let ih = prop_lt k j prf in LTESucc ih
+
 -- initialize (precondition): n, d, q<-0, r<-n
 -- precondition: d > 0
 -- invariant (precondition): n = q * d + r
--- precondition: r >= d <====
+-- precondition: r >= d <==== required to go one step further
 -- postcondition: n = q' * d + r'
--- postcondition: r' < d'
+-- postcondition: r' < d' <==== this is not guaranteed 
+-- depends on subX; subP is prefereable?
 divPstep : (n, d, q, r : Nat) ->
-        {auto d_1 : GTE d 1} -> -- d >= 1
-        {auto yet : GTE r d} -> -- r >= d
-        {auto inv : n = (q `mult` d) `plus` r} -> -- n = q*d+r  (n = (q'+1)*d+(r'-d))
+        {auto 0 d_1 : GTE d 1} -> -- d >= 1
+        {auto 0 yet : GTE r d} -> -- r >= d
+        {auto 0 inv : n = (q `mult` d) `plus` r} -> -- n = q*d+r  (n = (q'+1)*d+(r'-d))
         DPair (Nat, Nat) (\(q', r') => n = (q' `mult` d) `plus` r') -- n = q'*d+r'
+        -- (q' ** (r' ** n = (q' `mult` d) `plus` r')) -- n = q'*d+r'
 divPstep n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
-    -- assumptions
-    -- x : LTE 0 d0
-    -- y : LTE d0 r0
-    -- inv : n = plus (mult q (S d0)) (S r0)
-    -- goal : (q', r') = lamc in n = plus (mult q' (S d0)) r')
-    --        n = plus (mult q' (S d0)) r')
-    --        n = plus (mult ((S q) `plus` (S d0)) (subX r (S d0))
-    --        divPstep n (S d0) (S q) (subX (S r0) (S d0)) 
-    -- let (t1 ** t2) = divPstep n (S d0) (S q) {d_1 = LTESucc x} {yet=_} (assert_smaller (S r0) (subX r0 d0 {p=y})) {inv=_} in
-    -- ((S q, subX r0 d0) ** \(q', r') => ?hole0_1)
-    -- plus (mult q (S d0)) (S r0) = S (plus (plus d0 (mult q (S d0))) (subX r0 d0))
+    -- goal : plus (mult q (S d0)) (S r0) = S (plus (plus d0 (mult q (S d0))) (subX r0 d0))
     ((S q, subX r0 d0) **
      rewrite inv in
      rewrite plusCommutative d0 (mult q (S d0)) in
@@ -260,36 +265,30 @@ divPstep n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
 -- precondition: d > 0
 -- invariant (precondition): n = q * d + r
 -- postcondition: n = q' * d + r'
--- postcondition: r' < d'
+-- postcondition: r' < d' <==== required
 divP : (n, d, q, r : Nat) ->
-        {auto d_1 : GTE d 1} -> 
-        {auto pre : n = (q `mult` d) `plus` r} ->
-        (Nat, Nat)
-        -- {q', r' : Nat} -> DPair (Nat, Nat) (\(n', q') => n' = (q' `mult` d) `plus` r')
-divP n d q r {d_1} {pre} =
+        {auto 0 d_1 : GTE d 1} -> 
+        {auto inv : n = (q `mult` d) `plus` r} ->
+        DPair (Nat, Nat) (\(q', r') => n = (q' `mult` d) `plus` r')
+divP n d q r {d_1} {inv} =
     case decEq (r >= d) True of
-        (Yes prf) =>
-            let prf' = prop_gte r d prf in
-            -- let r' = subX r d {p=prf'} in -- <==== want to lift this to type level
-            let (r' ** prfr') = subP r d {p=prf'} in -- prfr' : r' = subX r d
-            -- let tmp = divPstep n d (S q) r' {d_1} {pre=(n=((S q) `mult` d) `plus` r')} in
-            -- let tmp = divPstep n d (S q) (assert_smaller r r') {d_1} {pre=_} in -- <============================================
-            -- tmp
-            -- let post = replace {p = \(qq, rr) => n = (qq `mult` d) `plus` rr} pre pre in
-            -- pre : n = plus (mult q d) r =======> How can I obtain pre' : n = plus (mult (S q) d) r' ?
-            -- d_1 : LTE 1 d
-            -- prf : not (compareNat r d == LT) = True
-            -- prf' : LTE d r
-            -- divPstep n d (S q) r' {d_1} {pre}
-            
-            -- let pre' = replace {p = \qq => n = plus (mult qq d) r} prfr' pre in
-            -- divPstep n d (S q) r' {d_1}
-            ?haole
-        (No contra) => (q, r)
+        (Yes rGTEdB) =>
+            let rGTEd = prop_lt r d rGTEdB in
+            let ((q', r') ** inv') = divPstep n d q r {yet=rGTEd} in
+            -- divP n d q' (assert_smaller r r') {inv=post} -- <============== Why is this not accepted?
+            -- let dp = divP n d q' (assert_smaller r r') {inv=inv'} in 
+            -- dp
+            let ((q'', r'') ** inv'') = divP n d q' (assert_smaller r r') {inv=inv'} in
+            ((q'', r'') ** inv'')
+        (No contra) => ((q, r) ** inv)
 
--- divPtailrec : (n, d : Nat) -> {auto d_1 : GTE d 1} -> (Nat, Nat)
--- divPtailrec n d = ?divPtailrec_rhs
-
+divPwrapper : (n, d : Nat) ->
+        {auto 0 d_1 : GTE d 1} -> 
+        DPair (Nat, Nat) (\(q', r') => n = (q' `mult` d) `plus` r')
+divPwrapper n d {d_1} = 
+    let ((q', r') ** prf) = divP n d 0 n {d_1} in
+    -- goal : (lamc : (Nat, Nat) ** let (q', r') = lamc in n = plus (mult q' d) r')
+    ((q', r') ** prf)
 
 divQ : (n : Nat) -> (d : Nat) -> {auto d_1 : GTE d 1} -> {c : Either (LTE n d) (Not (LTE n d))} ->
         {r : Nat} -> DPair (Nat, Nat) (\(q, r) => (n = (q `mult` d) `plus` r, Not (GTE r d)))
