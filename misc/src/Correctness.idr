@@ -4,15 +4,16 @@ import Decidable.Equality
 
 %default total
 
-t : (n : Nat) -> LTE n n
-t 0 = LTEZero
-t (S k) = LTESucc (t k)
-
+-------------------------------------------------------------
 max' : Nat -> Nat -> Nat
 max' 0 0 = 0
 max' 0 (S k) = S k
 max' (S k) 0 = S k
 max' (S k) (S j) = let kj = max' k j in S kj
+
+t : (n : Nat) -> LTE n n
+t 0 = LTEZero
+t (S k) = LTESucc (t k)
 
 spec_max' : {0 m : _} -> (a, b : Nat) -> max' a b = m -> 
     (Either (a = m) (b = m), LTE a m, LTE b m)
@@ -26,24 +27,8 @@ spec_max' (S k) (S j) Refl =
     (case p of
           (Left x) => (Left (cong S x), rewrite sym x in t (S k), LTESucc r)
           (Right x) => (Right (cong S x), LTESucc q, rewrite sym x in LTESucc (t j)))
+-------------------------------------------------------------
 
--- [x::ys | ys <- xs]
--- makeList x xss = [x::ys | ys <- xss]
-makeLists : a -> Vect n (Vect m a) -> Vect n (Vect (S m) a)
-makeLists x [] = []
-makeLists x (y :: xs) = [x :: y] ++ makeLists x xs
-
-{-
- combinations 0 [1,2,3] ---> [[]]
- combinations 1 [1,2,3] ---> [[1],[2],[3]]
- combinations 2 [1,2,3] ---> [[1,2],[1,3],[2,3]]
- combinations 3 [1,2,3] ---> [[1,2,3]]
- combinations 4 [1,2,3] ---> []
- -}
--- combinations : Int -> List a -> List (List a)
--- combinations 0 _ = [[]]
--- combinations _ [] = []
--- combinations n (x::xs) = [x::ys | ys <- combinations (n-1) xs] ++ combinations n xs
 
 prop_plus1 : (a, b : Nat) -> 0 = plus a b -> (a = 0, b = 0)
 prop_plus1 0 b prf = (Refl {x=0}, rewrite prf in Refl {x=b})
@@ -84,8 +69,72 @@ fact : Nat -> Nat
 fact 0 = 1
 fact (S k) = (S k) * fact k
 
+-- j+1 <= k+1 ==> j <= k
+prop_lte_S : (j, k : Nat) -> LTE (S j) (S k) -> LTE j k
+prop_lte_S 0 _ = \arg => LTEZero
+prop_lte_S (S j) _ = \(LTESucc arg) => arg
+
+-- k+1 > k
+prop_lte_Z : (k : Nat) -> Not (LTE (S k) k)
+prop_lte_Z Z LTEZero impossible
+prop_lte_Z Z (LTESucc x) impossible
+prop_lte_Z (S k) (LTESucc x) = prop_lte_Z k x
+
+prop_lte_S2 : (j, k : Nat) -> LTE (S j) k -> LTE j k
+prop_lte_S2 0 k x = LTEZero
+prop_lte_S2 (S j') (S k') (LTESucc x) = let ih = prop_lte_S2 j' k' x in LTESucc ih
+
+prop_lte_S3 : (j, k : Nat) -> LTE j k -> LTE j (S k)
+prop_lte_S3 0 k LTEZero = LTEZero
+prop_lte_S3 (S j') (S k') (LTESucc x) = let ih = prop_lte_S3 j' k' x in LTESucc ih
+
+prop_lte_assoc : (j, k, l : Nat) -> LTE j k -> LTE k l -> LTE j l
+prop_lte_assoc 0 k l LTEZero y = LTEZero
+prop_lte_assoc (S j') (S k') (S l') (LTESucc x) (LTESucc y) =
+    let ih = prop_lte_assoc j' k' l' x y in
+    LTESucc ih
+
+prop_plus_ge0 : (n, m : Nat) -> GTE (plus n m) 0
+prop_plus_ge0 0 m = LTEZero
+prop_plus_ge0 (S n') m = LTEZero
+
+-- Type-to-Bool
+t2b_plus_ge0 : (n, m : Nat) -> GTE n 1 -> 0 < plus n m = True
+t2b_plus_ge0 (S n') m (LTESucc x) = Refl
+
+prop_mult_ge0 : (n, m : Nat) -> GTE (mult n m) 0
+prop_mult_ge0 0 m = LTEZero
+prop_mult_ge0 (S n') m =
+    let prf = prop_plus_ge0 0 (plus m (mult n' m)) in
+    prf
+    
+prop_plus_geN : (n : Nat) -> GTE (plus n 0) n
+prop_plus_geN 0 = LTEZero
+prop_plus_geN (S n') = LTESucc (prop_plus_geN n')
+
+prop_plus_geNMN : (n, m : Nat) -> GTE (plus n m) n
+prop_plus_geNMN n 0 = prop_plus_geN n
+prop_plus_geNMN 0 (S m') = LTEZero
+prop_plus_geNMN (S n') (S m') =
+    let ih = prop_plus_geNMN n' m' in
+    rewrite sym $ plusSuccRightSucc n' m' in
+    let rw = prop_lte_S3 n' (plus n' m') ih in
+    LTESucc rw
+
+prop_fact_ge1 : (n : Nat) -> GTE (fact n) 1
+prop_fact_ge1 0 = LTESucc LTEZero
+prop_fact_ge1 (S n') =
+    let ih = prop_fact_ge1 n' in
+    -- goal : LTE 1 (plus (fact n') (mult n' (fact n')))
+    -- let e1 = prop_mult_ge0 n' (fact n') in
+    let e2 = prop_plus_geNMN (fact n') (mult n' (fact n')) in
+    prop_lte_assoc 1 (fact n') (plus (fact n') (mult n' (fact n'))) ih e2
+    
+
+----------------------------------------------------------------------------
 -- giving precondition makes this function covering (ant thus total)
 -- "subX returns a Nat" <=== this is not saying what subX is
+-- implementation of subtraction for naturals; no proof accompanied
 subX : (a, b : Nat) -> {auto 0 p : GTE a b} -> Nat
 subX a 0 {p = LTEZero} = a
 subX (S a') (S b') {p = (LTESucc x)} = subX a' b'
@@ -98,6 +147,7 @@ spec_subX (S a') (S b') {p = (LTESucc x)} = let ih = spec_subX a' b' in cong S i
 
 -- "subP returns r of Nat such that a = b + r"
 -- "You can obtain a Nat r such that a = b + r by using this function, subP."
+-- proof carrying code; spec is intrinsically proven
 subP : (a, b : Nat) -> {auto 0 p : GTE a b} -> (r ** a = b `plus` r)
 subP a 0 {p = LTEZero} = (a ** Refl)
 subP (S a') (S b') {p = (LTESucc x)} = let (w ** prf) = subP a' b' in (w ** cong S prf)
@@ -110,7 +160,7 @@ subP0 (S a') (S b') {p = (LTESucc x)} = subP0 a' b'
 -- "subP0' performs just like subX" <=== this is not saying what subX is
 subP0' : (a, b : Nat) -> {auto 0 p : GTE a b} -> (r ** r = a `subX` b)
 subP0' a b = (subX a b ** Refl) -- subP0' is just a copy of subX
-
+----------------------------------------------------------------------------
 
 -- n >= d ==> n <= d (bool -> prop)
 prop_gte : (n, d : Nat) -> n >= d = True -> GTE n d
@@ -174,17 +224,6 @@ prop_subX_lemma' _ Z LTEZero impossible
 prop_subX_lemma' _ Z (LTESucc x) impossible
 prop_subX_lemma' k (S j') x = let ih = prop_subX_lemma' k j' in ih x
 
--- j+1 <= k+1 ==> j <= k
-prop_lte_S : (j, k : Nat) -> LTE (S j) (S k) -> LTE j k
-prop_lte_S 0 _ = \arg => LTEZero
-prop_lte_S (S j) _ = \(LTESucc arg) => arg
-
--- k+1 > k
-prop_lte_Z : (k : Nat) -> Not (LTE (S k) k)
-prop_lte_Z Z LTEZero impossible
-prop_lte_Z Z (LTESucc x) impossible
-prop_lte_Z (S k) (LTESucc x) = prop_lte_Z k x
-
 -- j+1 <= k+1 ==> k+1 <= (k+1)-(j+1) ==> j+1 <= 0
 prop_subX_lemma2 : (j, k : Nat) -> (prf : LTE (S j) (S k)) -> LTE (S k) (subX (S k) (S j)) -> LTE (S j) Z
 prop_subX_lemma2 Z Z (LTESucc x) = \arg => arg
@@ -197,10 +236,13 @@ prop_subX_lemma2 (S j) (S k) (LTESucc x) =
     \arg => let tmp = prop_lte (S k) (subX (S k) (S j)) arg in
     let pp = ih tmp in absurd pp
 
-prop_subX_lemma3 : (r0, d0 : Nat) -> {auto pd : GTE d0 1} -> {auto ps : GTE r0 d0} -> Not (LTE (S r0) (subX r0 d0))
-prop_subX_lemma3 _ Z _ impossible
-prop_subX_lemma3 Z (S _) _ impossible
-prop_subX_lemma3 (S r') (S d') {pd = (LTESucc y)} {ps = (LTESucc z)} x = ?prop_subX_lemma3_rhs_5
+prop_subX_lemma3 : (r0, d0 : Nat) -> {auto ps : GTE r0 d0} -> Not (LTE (S r0) (subX r0 d0))
+prop_subX_lemma3 r0 0 {ps = LTEZero} x = let co = prop_lte_Z r0 x in co
+prop_subX_lemma3 (S r') (S d') {ps = (LTESucc y)} x =
+    let ih = prop_subX_lemma3 r' d' in
+    -- x : LTE (S (S r')) (subX r' d')
+    let co = prop_lte_S2 (S r') (subX r' d') x in
+    ih co
 
 -- d >= 1 && n >= d ==> -d <= -1 ==> n-d <= n-1 < n  ==> n-d < n
 prop_subX : (n, d : Nat) -> {auto pd : GTE d 1} -> {auto ps : GTE n d} -> Not (GTE (subX n d) n)
@@ -225,17 +267,28 @@ prop_subX (S k) (S j) {pd} {ps} pg =
             let pg' = prop_subX_lemma2 j k ps pg in
             absurd pg'
 
+-- Type-to-Bool conversion
+-- t2b_lte
+
+-- Bool-to-Type conversion
 prop_lt : (r, d : Nat) -> not (compareNat r d == LT) = True -> GTE r d
 prop_lt 0 0 Refl = LTEZero
 prop_lt Z (S _) Refl impossible
 prop_lt (S k) 0 Refl = LTEZero
 prop_lt (S k) (S j) prf = let ih = prop_lt k j prf in LTESucc ih
 
+-- Bool-to-Type conversion
+prop_ltv : (r, d : Nat) -> (not (compareNat r d == LT) = True -> Void) -> Not (GTE r d)
+prop_ltv 0 0 f LTEZero = f Refl
+prop_ltv (S r') 0 f LTEZero = f Refl
+prop_ltv (S r') (S d') f (LTESucc x) = let ih = prop_ltv r' d' f x in ih
+
 prop_subX2 : (n, d : Nat) -> {auto 0 p : LTE d n} -> n > (subX n d) = True -> Not (LTE n (subX n d))
 prop_subX2 0 0 {p = LTEZero} prf x = absurd prf
 prop_subX2 (S n') 0 {p = LTEZero} prf (LTESucc x) = ?prop_subX2_rhs_5
 prop_subX2 (S n') (S d') {p = (LTESucc y)} prf x = let ih = prop_subX2 n' d' {p=y} in ?prop_subX2_rhs_4
 
+-----------------------------------------------------------------------------
 -- giving precondition makes this function covering
 divX : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> (Nat, Nat)
 divX n d {d_1} = case decEq (n >= d) True of
@@ -265,161 +318,78 @@ divX' n d {d_1} = case decEq (n >= d) True of
 eq_calc1 : (n, d, q, r : Nat) -> {r' : Nat} -> {auto pre : n = plus (mult q d) r} -> {auto prf : GTE r d} -> r' = subX r d {p = prf} -> n = plus (mult (S q) d) r'
 eq_calc1 n d q r {r'} {pre} {prf} eqprf = ?hole
 
--- initialize (precondition): n, d, q<-0, r<-n
+-- typical initialization: n, d, q<-0, r<-n
 -- precondition: d > 0
--- invariant (precondition): n = q * d + r
+-- precondition: n = q * d + r
 -- precondition: r >= d <==== required to go one step further
--- postcondition: n = q' * d + r'
--- postcondition: r' < d' <==== this is not guaranteed 
--- depends on subX; subP is prefereable?
+-- postcondition: n = q' * d + r' /\ r > r'
+-- depends on subX
 divPstep : (n, d, q, r : Nat) ->
         {auto 0 d_1 : GTE d 1} -> -- d >= 1
-        {auto 0 yet : GTE r d} -> -- r >= d
-        {auto 0 inv : n = (q `mult` d) `plus` r} -> -- n = q*d+r  (n = (q'+1)*d+(r'-d))
-        DPair (Nat, Nat) (\(q', r') => n = (q' `mult` d) `plus` r') -- n = q'*d+r'
-        -- (q' ** (r' ** n = (q' `mult` d) `plus` r')) -- n = q'*d+r'
-divPstep n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
-    -- goal : plus (mult q (S d0)) (S r0) = S (plus (plus d0 (mult q (S d0))) (subX r0 d0))
-    ((S q, subX r0 d0) **
-     rewrite inv in
-     rewrite plusCommutative d0 (mult q (S d0)) in
-     rewrite plusSuccRightSucc (plus (mult q (S d0)) d0) (subX r0 d0) in
-     -- goal : plus (mult q (S d0)) (S r0) = plus (plus (mult q (S d0)) d0) (S (subX r0 d0))
-     rewrite sym $ plusAssociative (mult q (S d0)) d0 (S (subX r0 d0)) in
-     -- goal : (S r0) = (plus d0 (S (subX r0 d0)))
-     rewrite sym $ plusSuccRightSucc d0 (subX r0 d0) in
-     -- goal : r0 = plus d0 (subX r0 d0))
-     rewrite sym $ prop_plus_subX r0 d0 in
-     Refl)
-
-divPstep' : (n, d, q, r : Nat) ->
-        {auto 0 d_1 : GTE d 1} -> -- d >= 1
-        {auto 0 yet : GTE r d} -> -- r >= d
+        {auto yet : GTE r d} -> -- r >= d <========== yet is used in the evaluation!
         {auto 0 inv : n = (q `mult` d) `plus` r} -> -- n = q*d+r  (n = (q'+1)*d+(r'-d))
         DPair (Nat, Nat) (\(q', r') => (n = (q' `mult` d) `plus` r', LTE r r' -> Void)) -- n = q'*d+r' /\ r > r'
-        -- (q' ** (r' ** n = (q' `mult` d) `plus` r')) -- n = q'*d+r'
-divPstep' n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
-    -- goal : plus (mult q (S d0)) (S r0) = S (plus (plus d0 (mult q (S d0))) (subX r0 d0))
+divPstep n (S d0) q (S r0) {d_1 = (LTESucc x)} {yet = (LTESucc y)} {inv} =
     ((S q, subX r0 d0) **
      rewrite inv in
      rewrite plusCommutative d0 (mult q (S d0)) in
      rewrite plusSuccRightSucc (plus (mult q (S d0)) d0) (subX r0 d0) in
-     -- goal : plus (mult q (S d0)) (S r0) = plus (plus (mult q (S d0)) d0) (S (subX r0 d0))
      rewrite sym $ plusAssociative (mult q (S d0)) d0 (S (subX r0 d0)) in
-     -- goal : (S r0) = (plus d0 (S (subX r0 d0)))
      rewrite sym $ plusSuccRightSucc d0 (subX r0 d0) in
-     -- goal : r0 = plus d0 (subX r0 d0))
-     rewrite sym $ prop_plus_subX r0 d0 in
-     -- LTE (S r0) (subX r0 d0) -> Void
-     (Refl, ?hohooo))
+     rewrite sym $ prop_plus_subX r0 d0 in -- LTE (S r0) (subX r0 d0) -> Void
+     let prf = prop_subX_lemma3 r0 d0 in -- y, which is depending on yet, is used here implicitly
+     (Refl, prf))
 
-
--- initialize (precondition): n, d, q<-0, r<-n
+-- typical initialization: n, d, q<-0, r<-n
 -- precondition: d > 0
--- invariant (precondition): n = q * d + r
--- postcondition: n = q' * d + r'
--- postcondition: r' < d' <==== required
+-- precondition: n = q * d + r
+-- postcondition: n = q' * d + r' /\ r' < d
 divP : (n, d, q, r : Nat) ->
         {auto 0 d_1 : GTE d 1} -> 
         {auto inv : n = (q `mult` d) `plus` r} ->
-        DPair (Nat, Nat) (\(q', r') => n = (q' `mult` d) `plus` r')
+        DPair (Nat, Nat) (\(q', r') => (n = (q' `mult` d) `plus` r', Not (GTE r' d)))
 divP n d q r {d_1} {inv} =
     case decEq (r >= d) True of
         (Yes rGTEdB) =>
-            let rGTEd = prop_lt r d rGTEdB in
-            let ((q', r') ** inv') = divPstep n d q r {yet=rGTEd} in
-            -- divP n d q' (assert_smaller r r') {inv=post} -- <============== Why is this not accepted?
-            -- let dp = divP n d q' (assert_smaller r r') {inv=inv'} in 
-            -- dp
-            let ((q'', r'') ** inv'') = divP n d q' (assert_smaller r r') {inv=inv'} in
-            ((q'', r'') ** inv'')
-        (No contra) => ((q, r) ** inv)
+            let rGTEd = prop_lt r d rGTEdB in -- Bool-to-Type conversion
+            let ((q', r') ** (inv', aux)) = divPstep n d q r {yet=rGTEd} in -- stronger version, aux : Not (LTE r r')
+            -- divP n d q' (assert_smaller r r') {inv=inv'} -- <============== NG (Why???)
+            -- let dp = divP n d q' (assert_smaller r r') {inv=inv'} in dp -- <==== still NG
+            -- let ((q'', r'') ** inv'') = divP n d q' r' {inv=inv'} in ((q'', r'') ** inv'') -- NG, non-terminating, aux is useless
+            let ((q'', r'') ** inv'') = divP n d q' (assert_smaller r r') {inv=inv'} in ((q'', r'') ** inv'') -- OK
+        (No contra) =>
+            -- not (compareNat r d == LT) = True -> Void
+            let prf = prop_ltv r d contra in -- Bool-to-Type conversion
+            ((q, r) ** (inv, prf))
 
+-- proof carrying code of division for naturals
 divPwrapper : (n, d : Nat) ->
         {auto 0 d_1 : GTE d 1} -> 
-        DPair (Nat, Nat) (\(q', r') => n = (q' `mult` d) `plus` r')
+        DPair (Nat, Nat) (\(q', r') => (n = (q' `mult` d) `plus` r', Not (GTE r' d)))
 divPwrapper n d {d_1} = 
     let ((q', r') ** prf) = divP n d 0 n {d_1} in
     -- goal : (lamc : (Nat, Nat) ** let (q', r') = lamc in n = plus (mult q' d) r')
     ((q', r') ** prf)
-
-divQ : (n : Nat) -> (d : Nat) -> {auto d_1 : GTE d 1} -> {c : Either (LTE n d) (Not (LTE n d))} ->
-        {r : Nat} -> DPair (Nat, Nat) (\(q, r) => (n = (q `mult` d) `plus` r, Not (GTE r d)))
-divQ n d {d_1} {c} = case c of
-    (Left LTEZero) =>
-        let q = 0 in
-        let r = 0 in
-        let rw = multZeroLeftZero d in
-        ((q, r) ** (?hooh, ?hooho_2))
-    (Left (LTESucc x)) => ?hooho_3
-    (Right x) => ?hooho_1
-
--- divY : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> {r : Nat} -> (q ** (n = q * d + r, Not (GTE r d)))
-divY : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> {r : Nat} ->
-        DPair (Nat, Nat) (\(q, r) => (n = (q `mult` d) `plus` r, Not (GTE r d)))
-divY 0 (S d') {d_1 = (LTESucc x)} = let (q, r) = divX 0 (S d') in (?hoho ** ?hohos)
-divY (S k) d {d_1} = ?hole_1
--- divY n d {d_1} =
---     let (q, r) = divX n d {d_1} in
---     let eq = ?prf1 in
---     let lt = ?prf2 in
---     (q ** (eq, lt))
+-----------------------------------------------------------------------------
 
 
-divrem : Nat -> Nat -> Nat -> Nat -> Bool
-divrem a b d r = a == b * d + r && r < b
-DivRem : Nat -> Nat -> Nat -> Nat -> Type
-DivRem a b d r = (a = (b `mult` d) `plus` r,  GTE r b -> Void)
-prop_divrem1 : (a, b, d, r, d', r' : Nat) -> DivRem a b d r -> DivRem a b d' r' -> (d = d', r = r')
--- prop_divrem1 a b d r d' r' (x, z) (y, w) = (?part1, ?part2)
--- prop_divrem1 0 b d r d' r' (x, z) (y, w) = (?part11, ?part21)
-prop_divrem1 0 0 d r d' r' (x, z) (y, w) = 
-    (let z' = replace {p = \r => LTE 0 r} x LTEZero in void (z z'),
-     rewrite sym x in rewrite sym y in Refl {x=0})
-prop_divrem1 0 (S b') d r d' r' (x, z) (y, w) =
-    -- x : 0 = plus (plus d (mult b' d)) r
-    -- y : 0 = plus (plus d' (mult b' d')) r'
-    let (x', r1) = prop_plus1 (plus d (mult b' d)) r x in
-    let (x'', _) = prop_plus1 d (mult b' d) (sym x') in
-    let (y', r2) = prop_plus1 (plus d' (mult b' d')) r' y in
-    let (y'', _) = prop_plus1 d' (mult b' d') (sym y') in
-    (rewrite x'' in rewrite y'' in Refl, rewrite r1 in rewrite r2 in Refl)
-prop_divrem1 (S k) b d r d' r' (x, z) (y, w) =
-    -- x : S k = plus (mult b d) r
-    -- y : S k = plus (mult b d') r'
-    let t = prop_plus2 k (mult b d) r x in
-    let t' = prop_plus2 k (mult b d') r' y in
-    case decEq r 0 of
-      (Yes r_0) => case decEq r' 0 of
-        (Yes r'_0) => (
-            let s = prop_conj2 r_0 t in
-            let s' = prop_conj2 r'_0 t' in
-            let x2 = replace {p = \r => S k = plus (mult b d) r} r_0 x in
-            let y2 = replace {p = \r' => S k = plus (mult b d') r'} r'_0 y in
-            -- x2 : S k = plus (mult b d) 0
-            -- y2 : S k = plus (mult b d') 0
-            let eq = replace {p = \sk => sk = plus (mult b d) 0} y2 x2 in
-            let eq' = replace {p = \rhs => plus (mult b d') 0 = rhs} 
-                            (plusCommutative (mult b d) 0) eq in
-            let eq'' = replace {p = \lhs => lhs = mult b d} (plusCommutative (mult b d') 0) eq' in
-            ?part122_2,
-            rewrite r_0 in rewrite r'_0 in Refl)
-        (No contra) => ?part122_3
-      (No contra) => ?part122_1
-
-
-
-{- permutation and combination -}
+-- permutation (functional specification)
 nP : Nat -> Nat -> Nat
 nP _ 0 = 1
 nP 0 (S _) = 0
 nP (S n) (S x) = (S n) * nP n x
+
+-- combinations --------------------------------------------------------------
+-- using nP and div (primitive)
 nC : Nat -> Nat -> Nat
 nC n x = nP n x `div` fact x
+
+-- direct definition using div (primitive)
 nC' : Nat -> Nat -> Nat
 nC' _ 0 = 1
 nC' 0 (S _) = 0
 nC' (S n) (S x) = ((S n) `mult` nC' n x) `div` (S x)
+
 nC_nC' : (n, x : Nat) -> nC n x = nC' n x
 nC_nC' 0 0 = ?nC_nC'_rhs_2 -- divNat 1 1 = 1
 nC_nC' 0 (S k) = ?nC_nC'_rhs_3 -- divNat 0 (plus (fact k) (mult k (fact k))) = 0
@@ -453,10 +423,116 @@ nC_nC' (S k) (S j) = let ih = nC_nC' k j in ?nC_nC'_rhs_5 -- divNat (plus (nP k 
  -}
 
 
+-- using nP and divX
+nC1 : Nat -> Nat -> Nat
+nC1 n x =
+    let fGE1 = prop_fact_ge1 x in
+    let (q, r) = divX (nP n x) (fact x) {d_1=fGE1} in q
+
+-- using nP and divPwrapper
+nC1' : Nat -> Nat -> Nat
+nC1' n x =
+    let fGE1 = prop_fact_ge1 x in
+    let ((q, r) ** prf) = divPwrapper (nP n x) (fact x) {d_1=fGE1} in q
+
+-- direct definition using divX
+nC2 : Nat -> Nat -> Nat
+nC2 _ 0 = 1
+nC2 0 (S _) = 0
+nC2 (S n) (S x) = let (q, r) = divX ((S n) `mult` nC2 n x) (S x) in q
+
+-- direct definition using divPwrapper (inappropreately heavy)
+nC2' : Nat -> Nat -> Nat
+nC2' _ 0 = 1
+nC2' 0 (S _) = 0
+nC2' (S n) (S x) = let ((q, r) ** prf) = divPwrapper ((S n) `mult` nC2' n x) (S x) in q
 
 
+-- prop_nC2_Z : (x : Nat) -> nC2 0 x = 0
+-- prop_nC2_Z 0 = ?prop_nC2_Z_rhs_0
+-- prop_nC2_Z (S k) = ?prop_nC2_Z_rhs_1
+
+
+-- [x::ys | ys <- xs]
+-- makeList x xss = [x::ys | ys <- xss]
+makeLists : a -> Vect n (Vect m a) -> Vect n (Vect (S m) a)
+makeLists x [] = []
+makeLists x (y :: xs) = [x :: y] ++ makeLists x xs
+
+makeListsL : a -> List (List a) -> List (List a)
+makeListsL x [] = []
+makeListsL x (y :: xs) = [x :: y] ++ makeListsL x xs
+
+{-
+ combinations 0 [1,2,3] ---> [[]]
+ combinations 1 [1,2,3] ---> [[1],[2],[3]]
+ combinations 2 [1,2,3] ---> [[1,2],[1,3],[2,3]]
+ combinations 3 [1,2,3] ---> [[1,2,3]]
+ combinations 4 [1,2,3] ---> []
+ -}
+combinationsL : Int -> List a -> List (List a)
+combinationsL 0 _ = [[]]
+combinationsL _ [] = []
+combinationsL n (x::xs) = [x::ys | ys <- combinationsL (n-1) xs] ++ combinationsL n xs
+combinationsL' : Int -> List a -> List (List a)
+combinationsL' 0 _ = [[]]
+combinationsL' _ [] = []
+combinationsL' n (x::xs) = makeListsL x (combinationsL' (n-1) xs) ++ combinationsL n xs
+
+-- requires properties of divNat, ...
 combinations : (x : Nat) -> (l : Vect n a) -> {c : Nat} -> c = nC (length l) x -> Vect c (Vect x a)
-combinations x l Refl = ?combinations_rhs_0
+combinations 0 [] Refl = ?combinations_rhs_4
+combinations (S k) [] prf = ?combinations_rhs_3
+combinations x (y :: xs) prf = ?combinations_rhs_1
+
+combinations' : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> c = nC' (length ys) x -> Vect c (Vect x a)
+combinations' 0 [] Refl = [[]]
+combinations' (S x') [] Refl = []
+combinations' x (y :: ys') prf =
+    let l1 = combinations' x ys' in -- requires the proof of c = nC' (length ys') x
+    -- let l2 = makeLists x (combinations' (subX x 1) ys') in -- needs info about ?c = nC' (length ys') (subX x 1)
+    ?combinations'_rhs_2
+
+combinations1 : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> c = nC1 (length ys) x -> Vect c (Vect x a)
+combinations1 0 [] Refl = [[]]
+combinations1 (S x') [] Refl =
+    let e1 = prop_fact_ge1 x' in
+    let e1' = t2b_plus_ge0 (fact x') (mult x' (fact x')) e1 in
+    rewrite e1' in
+    []
+combinations1 x (y :: ys') Refl =
+    -- goal
+    -- Vect (let (q, r) = case decEq (not (compareNat (nP (S (length ys')) x) (fact x) == LT)) True of
+    --  { Yes prf => 
+    --        let (q, r) = divX (assert_smaller (nP (S (length ys')) x) (subX (nP (S (length ys')) x) (fact x))) (fact x) in
+    --        (S q, r) ;
+    --    No contra => (0, nP (S (length ys')) x) }
+    --        in q) (Vect x a)
+    let l1 = combinations1 x ys' in -- requires the proof of c = nC1 (length ys) x
+    -- let l2 = makeLists x (combinations1 (subX x 1) ys') in -- needs info about ?c = nC1 (length ys') (subX x 1) 
+    ?combinations1_rhs_2
+
+combinations1' : (x : Nat) -> (l : Vect n a) -> {c : Nat} -> c = nC1' (length l) x -> Vect c (Vect x a)
+combinations1' 0 [] Refl = [[]]
+combinations1' (S x') [] prf = ?combinations1'_rhs_4
+combinations1' x (y :: xs) prf = ?combinations1'_rhs_1
+
+combinations2 : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> c = nC2 (length ys) x -> Vect c (Vect x a)
+combinations2 0 [] Refl = [[]]
+combinations2 (S x') [] Refl = []
+combinations2 x (y :: ys') Refl =
+    let l1 = combinations2 x ys' in -- requires the proof of c = nC2 (length ys') x
+    -- let l2 = makeLists x (combinations2 (subX x 1) ys') in -- needs info about ?c = nC2 (length ys') (subX x 1)
+    ?combinations2_rhs_2
+
+combinations2' : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> c = nC2' (length ys) x -> Vect c (Vect x a)
+combinations2' 0 [] Refl = [[]]
+combinations2' (S x') [] Refl = []
+combinations2' x (y :: ys') prf =
+    let l1 = combinations2' x ys' in -- requires the proof of c = nC2' (length ys') x
+    -- let l2 = makeLists x (combinations2' (subX x 1) ys') in -- needs info about ?c = nC2' (length ys') (subX x 1)
+    ?combinations2'_rhs_1
+
 
 -- combinations : (x : Nat) -> (l : Vect n a) -> LTE x n -> Vect (S n) (Vect x a)
 -- combinations 0 [] LTEZero = [[]]
