@@ -448,9 +448,15 @@ nC2' 0 (S _) = 0
 nC2' (S n) (S x) = let ((q, r) ** prf) = divPwrapper ((S n) `mult` nC2' n x) (S x) in q
 
 
+prop_nC2 : (n, m : Nat) -> {auto p : LTE m n} -> nC2 (S n) m = divX (mult (nC2 n m) (S n)) (subX (S n) m)
+-- prop
+
 -- prop_nC2_Z : (x : Nat) -> nC2 0 x = 0
 -- prop_nC2_Z 0 = ?prop_nC2_Z_rhs_0
 -- prop_nC2_Z (S k) = ?prop_nC2_Z_rhs_1
+
+-- prop_multDistrib1 : (a, b : Nat) -> plus a (mult b a) = mult (S b) a
+-- prop_multDistrib1 a b = Refl {x = (S b) * a}
 
 
 -- [x::ys | ys <- xs]
@@ -470,14 +476,52 @@ makeListsL x (y :: xs) = [x :: y] ++ makeListsL x xs
  combinations 3 [1,2,3] ---> [[1,2,3]]
  combinations 4 [1,2,3] ---> []
  -}
+-- note: this is total
 combinationsL : Int -> List a -> List (List a)
 combinationsL 0 _ = [[]]
 combinationsL _ [] = []
 combinationsL n (x::xs) = [x::ys | ys <- combinationsL (n-1) xs] ++ combinationsL n xs
+-- note: this is total
 combinationsL' : Int -> List a -> List (List a)
 combinationsL' 0 _ = [[]]
 combinationsL' _ [] = []
-combinationsL' n (x::xs) = makeListsL x (combinationsL' (n-1) xs) ++ combinationsL n xs
+combinationsL' n (x::xs) = makeListsL x (combinationsL' (n-1) xs) ++ combinationsL' n xs
+
+combiL' : Nat -> List a -> List (List a)
+combiL' 0 _ = [[]]
+combiL' _ [] = []
+combiL' (S n) (x::xs) = makeListsL x (combiL' n xs) ++ combiL' (S n) xs
+
+prop_combiL' : (n : Nat) -> (xs : List a) -> length (combiL' n xs) = nC2 (length xs) n
+prop_combiL' 0 [] = Refl
+prop_combiL' (S n') [] = Refl
+prop_combiL' 0 (x :: xs') = Refl
+prop_combiL' (S n') (x :: xs') =
+    -- goal:
+    -- length (makeListsL x (combiL' n' xs') ++ combiL' (S n') xs') = (
+    --   let (q, r)
+    --   = case decEq (not (compareNat (plus (nC2 (length xs') n') (mult (length xs') (nC2 (length xs') n')))
+    --                                 (S n') == LT)) True of {
+    --       Yes prf =>
+    --          let (q, r) =
+    --              divX (assert_smaller (plus (nC2 (length xs') n') (mult (length xs') (nC2 (length xs') n')))
+    --                             (subX (plus (nC2 (length xs') n') (mult (length xs') (nC2 (length xs') n'))) (S n')))
+    --                   (S n') in
+    --          (S q, r) ;
+    --       No contra => 
+    --          (0, plus (nC2 (length xs') n') (mult (length xs') (nC2 (length xs') n'))) 
+    --     } in
+    --   q)
+    let ih = prop_combiL' n' (x :: xs') in
+    -- ih : length (combiL' n' (x :: xs')) = nC2 (S (length xs')) n'
+    ?prop_combiL'_rhs_3
+
+
+combinationsLF : Eq a => Int -> List a -> List (List a)
+combinationsLF 0 _ = [[]]
+combinationsLF _ [] = []
+combinationsLF n (x::xs) = [x::ys | ys <- combinationsL (n-1) (filter (/= x) xs)] ++ combinationsL n xs
+
 
 -- requires properties of divNat, ...
 combinations : (x : Nat) -> (l : Vect n a) -> {c : Nat} -> c = nC (length l) x -> Vect c (Vect x a)
@@ -525,13 +569,57 @@ combinations2 x (y :: ys') Refl =
     -- let l2 = makeLists x (combinations2 (subX x 1) ys') in -- needs info about ?c = nC2 (length ys') (subX x 1)
     ?combinations2_rhs_2
 
-combinations2' : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> c = nC2' (length ys) x -> Vect c (Vect x a)
-combinations2' 0 [] Refl = [[]]
-combinations2' (S x') [] Refl = []
-combinations2' x (y :: ys') prf =
-    let l1 = combinations2' x ys' in -- requires the proof of c = nC2' (length ys') x
-    -- let l2 = makeLists x (combinations2' (subX x 1) ys') in -- needs info about ?c = nC2' (length ys') (subX x 1)
-    ?combinations2'_rhs_1
+combinations2' : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> {auto 0 pl : c = nC2' (length ys) x} -> Vect c (Vect x a)
+combinations2' 0 [] {pl = Refl} = [[]]
+combinations2' (S x') [] {pl = Refl} = []
+combinations2' 0 (y :: ys') {pl = Refl} = [[]]
+combinations2' (S x') (y :: ys') {pl = Refl} =
+    -- goal:
+    -- Vect
+    --  (let ((q, r) ** prf) =
+    --   let ((q', r') ** prf) =
+    --     case decEq 
+    --         (not (compareNat (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x'))) (S x') == LT))
+    --         True of {
+    --          Yes rGTEdB =>
+    --               let rGTEd = 
+    --                 prop_lt (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x'))) (S x') rGTEdB in
+    --               let ((q', r') ** (inv', aux)) = 
+    --                 divPstep (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x')))
+    --                          (S x')
+    --                          0
+    --                          (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x'))) in 
+    --               let ((q'', r'') ** inv'') =
+    --                 divP (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x')))
+    --                      (S x') q' (assert_smaller (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x')))
+    --                                                      r') in
+    --               ((q'', r'')
+    --                ** inv'') ;
+    --          No contra =>
+    --               let prf = 
+    --                 prop_ltv (plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x'))) (S x') contra in
+    --               ((0, plus (nC2' (length ys') x') (mult (length ys') (nC2' (length ys') x')))
+    --                ** (Refl, prf))
+    --         } in ((q', r') ** prf)
+    --    in q)
+    --    (Vect (S x') a)
+    
+    
+    ?combinations2'_rhs_4
+
+-- combinations2' : (x : Nat) -> (ys : Vect n a) -> {c : Nat} -> (pl : c = nC2' (length ys) x) -> Vect c (Vect x a)
+-- combinations2' 0 [] Refl = [[]]
+-- combinations2' (S x') [] Refl = []
+-- combinations2' x (y :: ys') Refl = -- goal: Vect (nC2' (S (length ys')) x) (Vect x a)
+--     let l1 = combinations2' x ys' in -- requires the proof of c = nC2' (length ys') x
+--     -- let l2 = makeLists x (combinations2' (subX x 1) ys') in -- needs info about ?c = nC2' (length ys') (subX x 1)
+--     ?ooioi_0
+-- -- combinations2' x (y :: ys') prf =
+-- --     -- ys' : Vect len a
+-- --     -- prf : c = nC2' (S (length ys')) x
+-- --     let l1 = combinations2' x ys' in -- requires the proof of c = nC2' (length ys') x
+-- --     -- let l2 = makeLists x (combinations2' (subX x 1) ys') in -- needs info about ?c = nC2' (length ys') (subX x 1)
+-- --     ?combinations2'_rhs_1
 
 
 -- combinations : (x : Nat) -> (l : Vect n a) -> LTE x n -> Vect (S n) (Vect x a)
