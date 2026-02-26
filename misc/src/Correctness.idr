@@ -102,6 +102,13 @@ prop_plus_ge0 (S n') m = LTEZero
 t2b_plus_ge0 : (n, m : Nat) -> GTE n 1 -> 0 < plus n m = True
 t2b_plus_ge0 (S n') m (LTESucc x) = Refl
 
+t2b_plus_Z : (n : Nat) -> LTE n (plus n 0) ->
+    not (plus n 0 < n) = True
+t2b_plus_Z 0 p = Refl
+t2b_plus_Z (S n') (LTESucc x) =
+    let ih = t2b_plus_Z n' x in ih
+
+
 prop_mult_ge0 : (n, m : Nat) -> GTE (mult n m) 0
 prop_mult_ge0 0 m = LTEZero
 prop_mult_ge0 (S n') m =
@@ -169,12 +176,29 @@ prop_gte 0 (S k) prf = void $ uninhabited prf
 prop_gte (S k) 0 Refl = LTEZero
 prop_gte (S k) (S j) prf = let ih = prop_gte k j prf in LTESucc ih
 
+prop_gte' : (n, d : Nat) -> not (n < d) = True -> GTE n d
+prop_gte' 0 0 prf = LTEZero
+prop_gte' 0 (S d') prf = absurd prf
+prop_gte' (S n') 0 prf = LTEZero
+prop_gte' (S n') (S d') prf = let ih = prop_gte' n' d' prf in LTESucc ih
+
 -- a+1 <= b ==> a <= b
 prop_lte : (a, b : Nat) -> LTE (S a) b -> LTE a b
 prop_lte 0 b x = LTEZero
 prop_lte (S _) Z LTEZero impossible
 prop_lte (S _) Z (LTESucc x) impossible
 prop_lte (S k) (S j) (LTESucc x) = let ih = prop_lte k j x in LTESucc ih
+
+prop_lte2 : (a, b : Nat) -> LTE a b -> LTE a (S b)
+prop_lte2 0 b x = LTEZero
+prop_lte2 (S a') 0 x = absurd x
+prop_lte2 (S a') (S b') (LTESucc x) = let ih = prop_lte2 a' b' in LTESucc (ih x)
+
+prop_lte3 : (a, b : Nat) -> {auto 0 p : LTE a b} ->
+    LTE 1 (subX (S b) a {p=prop_lte2 a b p})
+prop_lte3 0 b {p = LTEZero} = LTESucc LTEZero
+prop_lte3 (S a') (S b') {p = (LTESucc x)} = 
+    let ih = prop_lte3 a' b' in ih
 
 -- n >= d ==> subX n d >= 0
 prop_subX0 : (n, d : Nat) -> {auto 0 p : GTE n d} -> GTE (subX n d) Z
@@ -283,6 +307,28 @@ prop_ltv 0 0 f LTEZero = f Refl
 prop_ltv (S r') 0 f LTEZero = f Refl
 prop_ltv (S r') (S d') f (LTESucc x) = let ih = prop_ltv r' d' f x in ih
 
+
+prop_subX_plus : (n, m : Nat) -> not (subX (plus n 0) n {p=prop_plus_geN n} < (S m)) = False
+prop_subX_plus 0 m = Refl
+prop_subX_plus (S n') m = let ih = prop_subX_plus n' m in ih
+
+-- this is superficially the same as above but not conpatible
+prop_subX_plus' : (n, m : Nat) -> {auto 0 b : plus n 0 >= n = True} ->
+    -- not (subX (plus n 0) n {p=prop_gte (plus n 0) n b} < (S m)) = False
+    not (subX (plus n 0) n {p=prop_gte' (plus n 0) n b} < (S m)) = False
+prop_subX_plus' 0 m {b} = Refl
+prop_subX_plus' (S n') m {b} = let ih = prop_subX_plus' n' m in ih
+
+prop_plus_geN_B : (n: Nat) -> not (plus n 0 < n) = True
+prop_plus_geN_B 0 = Refl
+prop_plus_geN_B (S n') = prop_plus_geN_B n'
+
+prop_plus_geN_B' : (n: Nat) -> not (compareNat (plus n 0) n == LT) = True
+prop_plus_geN_B' 0 = Refl
+prop_plus_geN_B' (S n') = prop_plus_geN_B' n'
+
+
+
 prop_subX2 : (n, d : Nat) -> {auto 0 p : LTE d n} -> n > (subX n d) = True -> Not (LTE n (subX n d))
 prop_subX2 0 0 {p = LTEZero} prf x = absurd prf
 prop_subX2 (S n') 0 {p = LTEZero} prf (LTESucc x) = ?prop_subX2_rhs_5
@@ -293,8 +339,12 @@ prop_subX2 (S n') (S d') {p = (LTESucc y)} prf x = let ih = prop_subX2 n' d' {p=
 divX : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> (Nat, Nat)
 divX n d {d_1} = case decEq (n >= d) True of
     (Yes prf) =>
-        let (q, r) = divX (assert_smaller n (subX n d {p=prop_gte n d prf})) d in -- prop_subX guarantees n < n-d
+        -- prf : not (compareNat n d == LT) = True
+        let (q, r) = 
+            -- divX (assert_smaller n (subX n d {p=prop_gte n d prf})) d in -- prop_subX guarantees n < n-d
+            divX (assert_smaller n (subX n d {p=prop_gte' n d prf})) d in -- prop_subX guarantees n < n-d
         (S q, r)
+        -- ?hohoo
     (No contra) => (Z, n)
 
 divX' : (n : Nat) -> (d : Nat) -> {auto 0 d_1 : GTE d 1} -> (Nat, Nat)
@@ -448,7 +498,37 @@ nC2' 0 (S _) = 0
 nC2' (S n) (S x) = let ((q, r) ** prf) = divPwrapper ((S n) `mult` nC2' n x) (S x) in q
 
 
-prop_nC2 : (n, m : Nat) -> {auto p : LTE m n} -> nC2 (S n) m = divX (mult (nC2 n m) (S n)) (subX (S n) m)
+prop_nC2 : (n, m : Nat) -> {auto p : LTE m n} ->
+    nC2 (S n) m = divX (mult (nC2 n m) (S n)) (subX (S n) m {p=prop_lte2 m n p}) {d_1=prop_lte3 m n}
+prop_nC2 n 0 {p = LTEZero} =
+    -- 1 = (case decEq (not (compareNat (plus n 0) n == LT)) True of {
+    --    Yes prf => 
+    --          let (q, r) = 
+    --              divX (assert_smaller (S (plus n 0)) (subX (S (plus n 0)) (S n))) (S n) in
+    --          (S q, r) ;
+    --    No contra => (0, S (plus n 0))
+    --   })
+    let e1 = prop_plus_geN n in
+    let e1' = t2b_plus_Z n e1 in
+    rewrite e1' in
+    -- 1 = (let (q, r) = 
+    --         case decEq (not (compareNat (subX (plus n 0) n) (S n) == LT)) True of {
+    --            Yes prf => 
+    --               let (q, r) = 
+    --                  divX (assert_smaller (subX (plus n 0) n) (subX (subX (plus n 0) n) (S n))) (S n) in
+    --               (S q, r) ;
+    --            No contra => 
+    --               (0, subX (plus n 0) n)
+    --         } in
+    --      (S q, r))
+    let e21 = prop_subX_plus n n in
+    let e22 = prop_subX_plus' n n {b=prop_plus_geN_B n} in
+    let e23 = prop_subX_plus' n n {b=prop_plus_geN_B' n} in
+    -- rewrite e23 in
+    ?prop_nC2_rhs_0
+prop_nC2 (S n') (S m') {p = (LTESucc x)} = ?prop_nC2_rhs_1
+                       
+    
 -- prop
 
 -- prop_nC2_Z : (x : Nat) -> nC2 0 x = 0
