@@ -16,16 +16,6 @@ data EqualX : (Nat, Nat) -> (Nat, Nat) -> Type where
     EQL : EqualX (n, m) (n, m')
     EQR : EqualX (n, m) (n', m)
 
--- commutativity
-prop_EqualX_commutative : (x, y : (Nat, Nat)) ->  EqualX x y -> EqualX y x
-prop_EqualX_commutative (x, w) (x, v) EQL = EQL
-prop_EqualX_commutative (x, w) (y, w) EQR = EQR
-
-prop_EqualX_commutative_ne : (x, y : (Nat, Nat)) ->  Not (EqualX x y) -> Not (EqualX y x)
-prop_EqualX_commutative_ne (x, w) (x, v) f EQL = case v of { 0 => f EQL ; S k => f EQL }
-prop_EqualX_commutative_ne (x, w) (y, w) f EQR = case y of { 0 => f EQR ; S k => f EQR }
-
-
 -- EqualX x y implies that either of elements of the two are definitionally the same.
 prop_EqualX_inv : EqualX (p, q) (p', q') -> Either (p = p') (q = q')
 prop_EqualX_inv EQL = Left Refl
@@ -158,10 +148,10 @@ prop_NotElemX2 prfnp prfne = \arg => case arg of
     (ThereX checkElem) => absurd (prfne checkElem)
 
 prop_ElemX_elim_po : (y, w : (Nat, Nat)) -> (ys : Vect len (Nat, Nat)) ->
-    (prfElem : ElemX y (w :: ys)) -> (prfNeq : Not (EqualX w y)) -> ElemX y ys
-prop_ElemX_elim_po y w [] (HereX check2) prfNeq = absurd (prfNeq (prop_EqualX_commutative y w check2))
+    (prfElem : ElemX y (w :: ys)) -> (prfNeq : Not (EqualX y w)) -> ElemX y ys
+prop_ElemX_elim_po y w [] (HereX check2) prfNeq = absurd (prfNeq check2)
 prop_ElemX_elim_po _ _ [] (ThereX _) _ impossible
-prop_ElemX_elim_po y w (z :: xs) (HereX check2)  prfNeq = absurd (prfNeq (prop_EqualX_commutative y w check2))
+prop_ElemX_elim_po y w (z :: xs) (HereX check2)  prfNeq = absurd (prfNeq check2)
 prop_ElemX_elim_po y w (z :: xs) (ThereX checkElem)  prfNeq = checkElem
 
 
@@ -233,14 +223,11 @@ prop_filterX_noelem _ (_ :: _) [] _ (HereX check2) impossible
 prop_filterX_noelem _ (_ :: _) [] _ (ThereX checkElem) impossible
 prop_filterX_noelem y (z :: xs) (w :: ys) dp x {len = S len'} with (decEqualX y z) proof dec_yz
   prop_filterX_noelem y (z :: xs) (w :: ys) dp x {len = S len'} | (Yes eq_yz) = 
-    let ih = prop_filterX_noelem y xs (w :: ys) dp in
-    ih x
+    prop_filterX_noelem y xs (w :: ys) dp x
   prop_filterX_noelem y (z :: xs) (w :: ys) dp x {len = S len'} | (No ne_yz) with (filterX y xs) proof f_yxs
     prop_filterX_noelem y (z :: xs) (z :: v') Refl x {len = S len'} | (No ne_yz) | (m' ** v') = 
         let ih' = prop_filterX_noelem y xs v' (sym f_yxs) in
-        let u = prop_EqualX_commutative_ne y z ne_yz in
-        let t = prop_ElemX_elim_po y z v' x u in
-        ih' t
+        ih' (prop_ElemX_elim_po y z v' x ne_yz)
 
 prop_filterX_noelem2X :
     {e1 : (Nat, Nat)} -> (e2 : (Nat, Nat)) ->
